@@ -2,6 +2,8 @@
 
 This repository contains a deep learning pipeline for human action recognition using 2D skeleton data from the UCF101 dataset. The project implements two models: a baseline MLP and a more sophisticated CNN+LSTM hybrid model.
 
+> Please Revise 'ucf101_skeleton_action_recognition.ipynb' notebook to see full run and breakdown of both model's performance and metrics + a full report on thier performance for this dataset
+
 ## Project Structure
 
 ```
@@ -19,6 +21,7 @@ This repository contains a deep learning pipeline for human action recognition u
 │   └── utils/             # Utility functions
 ├── results/               # Training results and model checkpoints
 ├── README.md              # This file
+├── ucf101_skeleton_action_recognition.ipynb   <--- Both models comparative & report
 └── requirements.txt       # Project dependencies
 ```
 
