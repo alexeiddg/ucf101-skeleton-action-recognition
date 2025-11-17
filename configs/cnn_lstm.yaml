@@ -1,0 +1,44 @@
+# Configuration for CNN+LSTM model
+
+# Dataset configuration
+dataset:
+  data_path: "../data/ucf101_2d.pkl"
+  num_frames: 64
+  num_joints: 17
+  num_coords: 2
+  class_names: null
+
+# Model configuration
+model:
+  name: "CNNLSTMModel"
+  input_channels: 2
+  input_frames: 64
+  input_joints: 17
+  conv_channels: [32, 64, 128]
+  conv_kernel_sizes: [3, 3, 3]
+  lstm_hidden_size: 256
+  lstm_num_layers: 2
+  lstm_dropout: 0.2
+  fc_sizes: [512, 256]
+  fc_dropout: 0.5
+  num_classes: 101
+  bidirectional: true
+
+# Training configuration
+training:
+  batch_size: 32
+  learning_rate: 0.0005
+  weight_decay: 0.0001
+  num_epochs: 150
+  early_stopping_patience: 15
+  scheduler_factor: 0.1
+  scheduler_patience: 7
+  scheduler_min_lr: 0.000005
+  
+# Paths
+paths:
+  save_dir: "results/cnn_lstm"
+  log_dir: "results/cnn_lstm/logs"
+  
+# Seed for reproducibility
+seed: 42
