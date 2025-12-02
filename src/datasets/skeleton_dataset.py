@@ -21,10 +21,14 @@ class SkeletonDataset(Dataset):
     valid splits:
         train1, train2, train3
         test1,  test2,  test3
+
+    Args:
+        return_valid_mask (bool): when True, also returns a mask marking real (non-padded) frames.
     """
 
     def __init__(self, data_path, split='train1', num_frames=64,
-                 num_joints=17, num_coords=2, class_names=None):
+                 num_joints=17, num_coords=2, class_names=None,
+                 return_valid_mask=False):
 
         self.data_path = data_path
         self.split = split
@@ -32,6 +36,7 @@ class SkeletonDataset(Dataset):
         self.num_joints = num_joints
         self.num_coords = num_coords
         self.class_names = class_names
+        self.return_valid_mask = return_valid_mask
 
         with open(self.data_path, 'rb') as f:
             all_data = pickle.load(f)
@@ -70,6 +75,10 @@ class SkeletonDataset(Dataset):
         kp = keypoints[0]
 
         T = kp.shape[0]
+        valid_len = min(T, self.num_frames)
+        frame_mask = np.zeros(self.num_frames, dtype=np.float32)
+        frame_mask[:valid_len] = 1.0
+
         if T >= self.num_frames:
             kp = kp[:self.num_frames]
         else:
@@ -85,5 +94,12 @@ class SkeletonDataset(Dataset):
         kp = (kp - min_vals) / denom
 
         kp = kp.reshape(self.num_frames, -1)
+
+        if self.return_valid_mask:
+            return (
+                torch.tensor(kp, dtype=torch.float32),
+                torch.tensor(label, dtype=torch.long),
+                torch.tensor(frame_mask, dtype=torch.float32),
+            )
 
         return torch.tensor(kp, dtype=torch.float32), torch.tensor(label, dtype=torch.long)

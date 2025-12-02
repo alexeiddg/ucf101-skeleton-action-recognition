@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import yaml
 import argparse
 import numpy as np
@@ -16,6 +17,7 @@ from src.models.baseline_mlp import create_baseline_model
 from src.utils.seed import set_seed
 from src.utils.metrics import compute_metrics
 from src.utils.plotting import plot_training_curves
+from src.utils.split_utils import save_grouped_splits
 
 
 def parse_args():
@@ -100,9 +102,28 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     
+    train_split = config['dataset'].get('train_split', 'train1')
+    val_split = config['dataset'].get('val_split', 'val1')
+    test_split = config['dataset'].get('test_split', 'test1')
+
+    if config['dataset'].get('use_grouped_split', False):
+        save_grouped_splits(
+            data_path=config['dataset']['data_path'],
+            output_path=config['dataset'].get('grouped_output_path', config['dataset']['data_path']),
+            base_split=train_split,
+            n_splits=config['dataset'].get('group_n_splits', 5),
+            fold_idx=config['dataset'].get('group_fold_idx', 0),
+            random_state=config['seed'],
+            train_key=config['dataset'].get('group_train_key'),
+            val_key=config['dataset'].get('group_val_key'),
+        )
+        train_split = config['dataset'].get('group_train_key', f"{train_split}_grouped_train")
+        val_split = config['dataset'].get('group_val_key', f"{train_split}_grouped_val")
+        config['dataset']['data_path'] = config['dataset'].get('grouped_output_path', config['dataset']['data_path'])
+
     train_dataset = SkeletonDataset(
         data_path=config['dataset']['data_path'],
-        split='train',
+        split=train_split,
         num_frames=config['dataset']['num_frames'],
         num_joints=config['dataset']['num_joints'],
         num_coords=config['dataset']['num_coords'],
@@ -111,7 +132,16 @@ def main():
     
     val_dataset = SkeletonDataset(
         data_path=config['dataset']['data_path'],
-        split='val',
+        split=val_split,
+        num_frames=config['dataset']['num_frames'],
+        num_joints=config['dataset']['num_joints'],
+        num_coords=config['dataset']['num_coords'],
+        class_names=config['dataset']['class_names']
+    )
+
+    test_dataset = SkeletonDataset(
+        data_path=config['dataset']['data_path'],
+        split=test_split,
         num_frames=config['dataset']['num_frames'],
         num_joints=config['dataset']['num_joints'],
         num_coords=config['dataset']['num_coords'],
@@ -128,6 +158,14 @@ def main():
     
     val_dataloader = DataLoader(
         val_dataset,
+        batch_size=config['training']['batch_size'],
+        shuffle=False,
+        num_workers=4,
+        pin_memory=True
+    )
+
+    test_dataloader = DataLoader(
+        test_dataset,
         batch_size=config['training']['batch_size'],
         shuffle=False,
         num_workers=4,
@@ -187,7 +225,7 @@ def main():
               f"Train Loss: {train_loss:.4f}, Train Acc: {train_accuracy:.4f}, "
               f"Val Loss: {val_loss:.4f}, Val Acc: {val_accuracy:.4f}")
         
-        if val_accuracy > best_val_accuracy:
+        if val_accuracy >= best_val_accuracy:
             best_val_accuracy = val_accuracy
             torch.save({
                 'epoch': epoch,
@@ -223,6 +261,24 @@ def main():
     
     writer.close()
     
+    model.load_state_dict(torch.load(os.path.join(config['paths']['save_dir'], 'best_model.pth'))['model_state_dict'])
+    test_loss, test_accuracy, test_metrics = validate(model, test_dataloader, criterion, device)
+
+    history = {
+        'train_loss': train_losses,
+        'val_loss': val_losses,
+        'train_accuracy': train_accuracies,
+        'val_accuracy': val_accuracies,
+        'best_val_accuracy': best_val_accuracy,
+        'best_epoch': int(np.argmax(val_accuracies)) + 1,
+        'test_loss': test_loss,
+        'test_accuracy': test_accuracy,
+        'test_metrics': test_metrics,
+    }
+
+    with open(os.path.join(config['paths']['save_dir'], 'training_history.json'), 'w') as f:
+        json.dump(history, f, indent=2)
+
     print("Training completed!")
     print(f"Best validation accuracy: {best_val_accuracy:.4f}")
 
